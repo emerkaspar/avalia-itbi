@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -15,32 +15,21 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+let editStates = { hectare: null, fator: null, plantacao: null };
 let localidadesBase = [];
 let valorFinalCalculado = 0;
 
-// --- MÁSCARA DE NUMERAIS EM TEMPO REAL ---
-function aplicarMascara(event) {
-    let input = event.target;
-    let valor = input.value.replace(/\D/g, ""); // Remove tudo que não é dígito
-    
-    // Converte para decimal (dividir por 100 para centavos)
-    valor = (valor / 100).toFixed(2) + "";
-    valor = valor.replace(".", ",");
-    valor = valor.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1."); // Adiciona pontos de milhar
-    
-    input.value = valor === "0,00" ? "" : valor;
-}
-
-// Converte "1.250,50" -> 1250.5
-const paraNumero = (str) => {
-    if (!str) return 0;
-    return parseFloat(str.replace(/\./g, "").replace(",", "."));
-};
-
-// Formata 1250.5 -> "R$ 1.250,50"
+// --- UTILITÁRIOS ---
+const paraNumero = (str) => str ? parseFloat(str.replace(/\./g, "").replace(",", ".")) : 0;
 const paraMoeda = (num) => num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-// --- AUTENTICAÇÃO ---
+const aplicarMascara = (e) => {
+    let valor = e.target.value.replace(/\D/g, "");
+    valor = (valor / 100).toFixed(2).replace(".", ",").replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
+    e.target.value = valor === "0,00" ? "" : valor;
+};
+
+// --- AUTH ---
 onAuthStateChanged(auth, (user) => {
     const loginUI = document.getElementById('login-overlay');
     const appUI = document.getElementById('app-wrapper');
@@ -59,23 +48,22 @@ document.getElementById('btnLogar').onclick = async () => {
     const email = document.getElementById('login-email').value;
     const senha = document.getElementById('login-senha').value;
     try { await signInWithEmailAndPassword(auth, email, senha); }
-    catch (e) { document.getElementById('login-erro').innerText = "Acesso negado."; }
+    catch (e) { document.getElementById('login-erro').innerText = "Credenciais inválidas."; }
 };
 
 document.getElementById('btnSair').onclick = () => signOut(auth);
 
-// --- NAVEGAÇÃO ENTRE ABAS ---
+// --- NAVEGAÇÃO ---
 document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
         e.preventDefault();
-        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-link, .tab-content').forEach(el => el.classList.remove('active'));
         link.classList.add('active');
         document.getElementById(link.getAttribute('data-target')).classList.add('active');
     });
 });
 
-// --- MOTOR DE CÁLCULO ---
+// --- CÁLCULO ---
 function calcular() {
     const areaM2 = paraNumero(document.getElementById('itbi-area').value);
     const localidadeId = document.getElementById('itbi-localidade').value;
@@ -85,14 +73,12 @@ function calcular() {
     if (!loc || areaM2 <= 0) {
         document.getElementById('itbi-valor-final').value = "R$ 0,00";
         document.getElementById('painel-comparativo').style.display = 'none';
-        valorFinalCalculado = 0;
         return;
     }
 
     const vHa = loc.valorPorHectare;
     let total = (areaM2 / 10000) * vHa;
 
-    // Fatores Multiplicadores
     document.querySelectorAll('.fator-item-row').forEach(row => {
         const cb = row.querySelector('.fator-cb');
         if (cb.checked) {
@@ -101,7 +87,6 @@ function calcular() {
         }
     });
 
-    // Plantações Aditivas
     document.querySelectorAll('.plantacao-item-row').forEach(row => {
         const cb = row.querySelector('.pl-cb');
         if (cb.checked) {
@@ -113,47 +98,49 @@ function calcular() {
     valorFinalCalculado = total;
     document.getElementById('itbi-valor-final').value = paraMoeda(total);
 
-    // Comparativo
     const painel = document.getElementById('painel-comparativo');
     if (vDeclarado > 0) {
         painel.style.display = 'flex';
         const dif = vDeclarado - total;
         const perc = (dif / total) * 100;
-        
-        if (dif < 0) {
-            painel.style.background = "#fef2f2";
-            painel.style.color = "#991b1b";
-            document.getElementById('comparativo-texto').innerText = `Diferença de ${Math.abs(perc).toFixed(1)}% abaixo da pauta.`;
-        } else {
-            painel.style.background = "#f0fdf4";
-            painel.style.color = "#166534";
-            document.getElementById('comparativo-texto').innerText = `Conformidade: ${perc.toFixed(1)}% acima da pauta.`;
-        }
+        painel.style.background = dif < 0 ? "#fef2f2" : "#f0fdf4";
+        painel.style.color = dif < 0 ? "#991b1b" : "#166534";
+        document.getElementById('comparativo-texto').innerText = `Diferença de ${Math.abs(perc).toFixed(1)}% ${dif < 0 ? 'abaixo' : 'acima'} da pauta.`;
     } else { painel.style.display = 'none'; }
 }
 
+// --- SINCRONIZAÇÃO ---
 function iniciarApp() {
-    // Sincronizações
     onSnapshot(collection(db, "valores_hectare"), snap => {
         localidadesBase = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const sel = document.getElementById('itbi-localidade');
         const tab = document.getElementById('tabelaHectares');
         sel.innerHTML = '<option value="">Selecionar...</option>';
-        tab.innerHTML = '<thead><tr><th>Localidade</th><th>Valor/ha</th><th>Ações</th></tr></thead><tbody>';
+        tab.innerHTML = '<thead><tr><th>Localidade</th><th>Valor/ha</th><th style="width: 80px;"></th></tr></thead><tbody>';
         localidadesBase.forEach(l => {
             sel.innerHTML += `<option value="${l.id}">${l.localidade}</option>`;
-            tab.innerHTML += `<tr><td>${l.localidade}</td><td>${paraMoeda(l.valorPorHectare)}</td><td><button onclick="remover('valores_hectare','${l.id}')">Excluir</button></td></tr>`;
+            tab.innerHTML += `<tr><td>${l.localidade}</td><td>${paraMoeda(l.valorPorHectare)}</td><td>
+                <div class="action-buttons">
+                    <button class="btn-edit" onclick="prepararEdicaoHectare('${l.id}')"><i class="fas fa-pen"></i></button>
+                    <button class="btn-delete" onclick="remover('valores_hectare','${l.id}')"><i class="fas fa-trash"></i></button>
+                </div>
+            </td></tr>`;
         });
     });
 
     onSnapshot(collection(db, "fatores"), snap => {
         const cont = document.getElementById('lista-fatores-selecao');
         const tab = document.getElementById('tabelaFatores');
-        cont.innerHTML = ""; tab.innerHTML = '<thead><tr><th>Fator</th><th>Índice</th><th>Ações</th></tr></thead><tbody>';
+        cont.innerHTML = ""; tab.innerHTML = '<thead><tr><th>Fator</th><th>Índice</th><th style="width: 80px;"></th></tr></thead><tbody>';
         snap.forEach(d => {
             const f = d.data();
             cont.innerHTML += `<div class="item-row fator-item-row"><input type="checkbox" class="fator-cb" data-indice="${f.indice}" onchange="atu()"><span class="fator-nome">${f.nome}</span><input type="text" class="fator-area mascara-numero" placeholder="0,00" oninput="atu()"></div>`;
-            tab.innerHTML += `<tr><td>${f.nome}</td><td>${f.indice}</td><td><button onclick="remover('fatores','${d.id}')">Excluir</button></td></tr>`;
+            tab.innerHTML += `<tr><td>${f.nome}</td><td>${f.indice}</td><td>
+                <div class="action-buttons">
+                    <button class="btn-edit" onclick="prepararEdicaoFator('${d.id}')"><i class="fas fa-pen"></i></button>
+                    <button class="btn-delete" onclick="remover('fatores','${d.id}')"><i class="fas fa-trash"></i></button>
+                </div>
+            </td></tr>`;
         });
         atribuirMascaras();
     });
@@ -161,11 +148,16 @@ function iniciarApp() {
     onSnapshot(collection(db, "plantacoes"), snap => {
         const cont = document.getElementById('lista-plantacoes-selecao');
         const tab = document.getElementById('tabelaPlantacoes');
-        cont.innerHTML = ""; tab.innerHTML = '<thead><tr><th>Cultura</th><th>R$/ha</th><th>Ações</th></tr></thead><tbody>';
+        cont.innerHTML = ""; tab.innerHTML = '<thead><tr><th>Cultura</th><th>R$/ha</th><th style="width: 80px;"></th></tr></thead><tbody>';
         snap.forEach(d => {
             const p = d.data();
             cont.innerHTML += `<div class="item-row plantacao-item-row"><input type="checkbox" class="pl-cb" data-valorha="${p.valorHectare}" onchange="atu()"><span class="pl-nome">${p.nome}</span><input type="text" class="pl-area mascara-numero" placeholder="0,00" oninput="atu()"></div>`;
-            tab.innerHTML += `<tr><td>${p.nome}</td><td>${paraMoeda(p.valorHectare)}</td><td><button onclick="remover('plantacoes','${d.id}')">Excluir</button></td></tr>`;
+            tab.innerHTML += `<tr><td>${p.nome}</td><td>${paraMoeda(p.valorHectare)}</td><td>
+                <div class="action-buttons">
+                    <button class="btn-edit" onclick="prepararEdicaoPlantacao('${d.id}')"><i class="fas fa-pen"></i></button>
+                    <button class="btn-delete" onclick="remover('plantacoes','${d.id}')"><i class="fas fa-trash"></i></button>
+                </div>
+            </td></tr>`;
         });
         atribuirMascaras();
     });
@@ -175,22 +167,83 @@ function iniciarApp() {
         tab.innerHTML = "";
         snap.forEach(d => {
             const item = d.data();
-            tab.innerHTML += `<tr><td>${item.dataCadastro.toDate().toLocaleDateString()}</td><td>${item.localidadeNome}</td><td>${item.areaM2}</td><td>${paraMoeda(item.valorFinal)}</td><td>${paraMoeda(item.valorContribuinte)}</td><td><button onclick="remover('avaliacoes','${d.id}')">Remover</button></td></tr>`;
+            tab.innerHTML += `<tr><td>${item.dataCadastro.toDate().toLocaleDateString()}</td><td>${item.localidadeNome}</td><td>${item.areaM2}</td><td>${paraMoeda(item.valorFinal)}</td><td>${paraMoeda(item.valorContribuinte)}</td><td>
+                <button class="btn-delete" onclick="remover('avaliacoes','${d.id}')"><i class="fas fa-trash"></i></button>
+            </td></tr>`;
         });
     });
 }
 
-// Gerencia máscaras em campos fixos e dinâmicos
-function atribuirMascaras() {
-    document.querySelectorAll('.mascara-numero').forEach(el => {
-        el.oninput = (e) => {
-            aplicarMascara(e);
-            calcular();
-        };
-    });
+// --- EDIÇÃO ---
+window.prepararEdicaoHectare = (id) => {
+    const item = localidadesBase.find(l => l.id === id);
+    document.getElementById('loc-nome').value = item.localidade;
+    document.getElementById('loc-valor').value = item.valorPorHectare.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    editStates.hectare = id;
+    toggleUI('hectare', true);
+};
+
+window.prepararEdicaoFator = (id) => {
+    onSnapshot(doc(db, "fatores", id), (d) => {
+        const item = d.data();
+        document.getElementById('fator-nome').value = item.nome;
+        document.getElementById('fator-indice').value = item.indice.toString().replace(".", ",");
+        editStates.fator = id;
+        toggleUI('fator', true);
+    }, {onlyOnce: true});
+};
+
+window.prepararEdicaoPlantacao = (id) => {
+    onSnapshot(doc(db, "plantacoes", id), (d) => {
+        const item = d.data();
+        document.getElementById('pl-nome').value = item.nome;
+        document.getElementById('pl-valor').value = item.valorHectare.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+        editStates.plantacao = id;
+        toggleUI('plantacao', true);
+    }, {onlyOnce: true});
+};
+
+function toggleUI(sec, isEdit) {
+    const s = sec === 'hectare' ? 'Hectare' : sec.charAt(0).toUpperCase() + sec.slice(1);
+    document.getElementById(`btnSalvar${s}`).innerText = isEdit ? "Atualizar" : `Salvar ${s}`;
+    document.getElementById(`btnCancelar${s}`).style.display = isEdit ? "inline-block" : "none";
+    if(!isEdit) {
+        document.querySelectorAll(`#secao-${sec === 'hectare' ? 'hectares' : sec+'s'} input`).forEach(i => i.value = "");
+        editStates[sec] = null;
+    }
 }
 
-// Inicia máscaras iniciais
+// --- PERSISTÊNCIA ---
+document.getElementById('btnSalvarHectare').onclick = async () => {
+    const data = { localidade: document.getElementById('loc-nome').value, valorPorHectare: paraNumero(document.getElementById('loc-valor').value) };
+    if(editStates.hectare) await updateDoc(doc(db, "valores_hectare", editStates.hectare), data);
+    else await addDoc(collection(db, "valores_hectare"), data);
+    toggleUI('hectare', false);
+};
+
+document.getElementById('btnSalvarFator').onclick = async () => {
+    const data = { nome: document.getElementById('fator-nome').value, indice: paraNumero(document.getElementById('fator-indice').value) };
+    if(editStates.fator) await updateDoc(doc(db, "fatores", editStates.fator), data);
+    else await addDoc(collection(db, "fatores"), data);
+    toggleUI('fator', false);
+};
+
+document.getElementById('btnSalvarPlantacao').onclick = async () => {
+    const data = { nome: document.getElementById('pl-nome').value, valorHectare: paraNumero(document.getElementById('pl-valor').value) };
+    if(editStates.plantacao) await updateDoc(doc(db, "plantacoes", editStates.plantacao), data);
+    else await addDoc(collection(db, "plantacoes"), data);
+    toggleUI('plantacao', false);
+};
+
+document.getElementById('btnCancelarHectare').onclick = () => toggleUI('hectare', false);
+document.getElementById('btnCancelarFator').onclick = () => toggleUI('fator', false);
+document.getElementById('btnCancelarPlantacao').onclick = () => toggleUI('plantacao', false);
+
+function atribuirMascaras() {
+    document.querySelectorAll('.mascara-numero').forEach(el => {
+        el.oninput = (e) => { aplicarMascara(e); calcular(); };
+    });
+}
 atribuirMascaras();
 
 document.getElementById('btnSalvarITBI').onclick = async () => {
@@ -205,23 +258,8 @@ document.getElementById('btnSalvarITBI').onclick = async () => {
     alert("Avaliação arquivada.");
 };
 
-document.getElementById('btnSalvarHectare').onclick = async () => {
-    const nome = document.getElementById('loc-nome').value;
-    const valor = paraNumero(document.getElementById('loc-valor').value);
-    if(nome && valor) await addDoc(collection(db, "valores_hectare"), { localidade: nome, valorPorHectare: valor });
-};
-
-document.getElementById('btnSalvarFator').onclick = async () => {
-    const nome = document.getElementById('fator-nome').value;
-    const indice = document.getElementById('fator-indice').value.replace(",", ".");
-    if(nome && indice) await addDoc(collection(db, "fatores"), { nome, indice });
-};
-
-document.getElementById('btnSalvarPlantacao').onclick = async () => {
-    const nome = document.getElementById('pl-nome').value;
-    const valor = paraNumero(document.getElementById('pl-valor').value);
-    if(nome && valor) await addDoc(collection(db, "plantacoes"), { nome, valorHectare: valor });
-};
-
 window.atu = calcular;
-window.remover = async (c, id) => { if(confirm("Remover registro?")) await deleteDoc(doc(db, c, id)); };
+document.getElementById('itbi-area').oninput = calcular;
+document.getElementById('itbi-localidade').onchange = calcular;
+document.getElementById('itbi-valor-contribuinte').oninput = calcular;
+window.remover = async (c, id) => { if(confirm("Excluir registro?")) await deleteDoc(doc(db, c, id)); };

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Avalia ITBI | Gestão Fiscal</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -13,14 +13,17 @@
     <div id="login-overlay" class="auth-container">
         <div class="auth-card">
             <div class="auth-header">
+                <i class="fas fa-shield-halved" style="font-size: 2rem; color: #0f172a; margin-bottom: 1rem;"></i>
                 <h2>Acesso ao Sistema</h2>
                 <p>Insira suas credenciais para continuar</p>
             </div>
             <div class="form-group">
-                <input type="email" id="login-email" placeholder="E-mail">
+                <label>E-mail</label>
+                <input type="email" id="login-email" placeholder="nome@municipio.gov.br">
             </div>
             <div class="form-group">
-                <input type="password" id="login-senha" placeholder="Senha">
+                <label>Senha</label>
+                <input type="password" id="login-senha" placeholder="••••••••">
             </div>
             <button id="btnLogar" class="btn-action">Entrar</button>
             <p id="login-erro" class="txt-error"></p>
@@ -31,7 +34,7 @@
         <aside class="app-sidebar">
             <div class="brand">
                 <i class="fas fa-landmark"></i>
-                <span>Avalia ITBI</span>
+                <span>Avalia <b>ITBI</b></span>
             </div>
             
             <nav class="app-nav">
@@ -51,7 +54,7 @@
             <section id="secao-itbi" class="tab-content active">
                 <div class="page-header">
                     <h1>Calculadora ITBI</h1>
-                    <p>Cálculo de base com suporte a áreas parciais e benfeitorias.</p>
+                    <p>Avaliação técnica automatizada com análise de pauta fiscal.</p>
                 </div>
 
                 <div class="card">
@@ -100,11 +103,11 @@
                 </div>
 
                 <div class="card mt-24">
-                    <h3>Histórico Recente</h3>
+                    <h3>Histórico de Avaliações</h3>
                     <div class="table-container">
                         <table>
                             <thead>
-                                <tr><th>Data</th><th>Localidade</th><th>Área (m²)</th><th>Avaliado</th><th>Contribuinte</th><th></th></tr>
+                                <tr><th>Data</th><th>Localidade</th><th>Área (m²)</th><th>Avaliado</th><th>Contribuinte</th><th style="width: 50px;"></th></tr>
                             </thead>
                             <tbody id="tabelaITBI"></tbody>
                         </table>
@@ -116,48 +119,45 @@
                 <div class="page-header"><h1>Valores por Hectare</h1></div>
                 <div class="card">
                     <div class="form-row">
-                        <div class="field"><label>Localidade</label><input type="text" id="loc-nome" placeholder="Ex: Batinga Sul"></div>
-                        <div class="field"><label>Valor/ha (R$)</label><input type="text" id="loc-valor" class="mascara-numero" placeholder="0,00"></div>
+                        <div class="field"><label>Nome da Localidade</label><input type="text" id="loc-nome"></div>
+                        <div class="field"><label>Valor por Hectare (R$)</label><input type="text" id="loc-valor" class="mascara-numero"></div>
                     </div>
-                    <button id="btnSalvarHectare" class="btn-save">Salvar Localidade</button>
-                </div>
-                <div class="card mt-24">
-                    <div class="table-container">
-                        <table id="tabelaHectares"></table>
+                    <div class="btn-group">
+                        <button id="btnSalvarHectare" class="btn-save">Salvar Localidade</button>
+                        <button id="btnCancelarHectare" class="btn-cancel" style="display: none;">Cancelar</button>
                     </div>
                 </div>
+                <div class="card mt-24"><table id="tabelaHectares"></table></div>
             </section>
 
             <section id="secao-fatores" class="tab-content">
-                <div class="page-header"><h1>Fatores V/D</h1></div>
+                <div class="page-header"><h1>Fatores de Ajuste</h1></div>
                 <div class="card">
                     <div class="form-row">
-                        <div class="field"><label>Descrição</label><input type="text" id="fator-nome" placeholder="Ex: Acesso Asfaltado"></div>
+                        <div class="field"><label>Descrição do Fator</label><input type="text" id="fator-nome"></div>
                         <div class="field"><label>Índice (Ex: 0,85)</label><input type="text" id="fator-indice" placeholder="1,00"></div>
                     </div>
-                    <button id="btnSalvarFator" class="btn-save">Salvar Fator</button>
-                </div>
-                <div class="card mt-24">
-                    <div class="table-container">
-                        <table id="tabelaFatores"></table>
+                    <div class="btn-group">
+                        <button id="btnSalvarFator" class="btn-save">Salvar Fator</button>
+                        <button id="btnCancelarFator" class="btn-cancel" style="display: none;">Cancelar</button>
                     </div>
                 </div>
+                <div class="card mt-24"><table id="tabelaFatores"></table></div>
             </section>
 
             <section id="secao-plantacoes" class="tab-content">
                 <div class="page-header"><h1>Culturas e Plantações</h1></div>
                 <div class="card">
                     <div class="form-row">
-                        <div class="field"><label>Tipo de Cultura</label><input type="text" id="pl-nome" placeholder="Ex: Eucaliptus"></div>
-                        <div class="field"><label>Valorização por Hectare (R$)</label><input type="text" id="pl-valor" class="mascara-numero" placeholder="0,00"></div>
+                        <div class="field"><label>Tipo de Cultura</label><input type="text" id="pl-nome"></div>
+                        <div class="field"><label>Valorização por Hectare (R$)</label><input type="text" id="pl-valor" class="mascara-numero"></div>
                     </div>
-                    <button id="btnSalvarPlantacao" class="btn-save">Salvar Cultura</button>
-                </div>
-                <div class="card mt-24">
-                    <div class="table-container">
-                        <table id="tabelaPlantacoes"></table>
+                    <div class="btn-group">
+                        <button id="btnSalvarPlantacao" class="btn-save">Salvar Cultura</button>
+                        <button id="btnCancelarPlantacao" class="btn-cancel" style="display: none;">Cancelar</button>
                     </div>
                 </div>
+                <div class="card mt-24"><table id="tabelaPlantacoes"></table></div>
             </section>
         </main>
     </div>
