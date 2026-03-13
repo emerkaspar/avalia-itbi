@@ -27,44 +27,74 @@ document.querySelectorAll('.nav-item').forEach(item => {
 });
 
 // --- MOTOR DE CÁLCULO (CONVERSÃO M² -> HA) ---
+// --- MOTOR DE CÁLCULO ATUALIZADO ---
 function calcularValorFinal() {
     const areaTotalM2 = parseFloat(document.getElementById('itbi-area').value) || 0;
     const localidadeId = document.getElementById('itbi-localidade').value;
+    const valorContribuinte = parseFloat(document.getElementById('itbi-valor-contribuinte').value) || 0;
     const loc = localidadesBase.find(l => l.id === localidadeId);
     
     if (!loc || areaTotalM2 <= 0) {
         document.getElementById('itbi-valor-final').value = "R$ 0,00";
+        document.getElementById('painel-comparativo').style.display = 'none';
         valorFinalCalculado = 0;
         return;
     }
 
-    // CONVERSÃO INTERNA: 1 ha = 10.000 m²
     const areaTotalHa = areaTotalM2 / 10000;
-    const vUnitarioHectare = loc.valorPorHectare;
-    
-    let total = areaTotalHa * vUnitarioHectare;
+    let total = areaTotalHa * loc.valorPorHectare;
 
-    // Processa cada fator de ajuste marcado
     document.querySelectorAll('.fator-item-row').forEach(row => {
         const checkbox = row.querySelector('.fator-checkbox');
-        const inputAreaM2 = row.querySelector('.area-afetada-input');
-        
         if (checkbox.checked) {
-            const areaAfetadaM2 = parseFloat(inputAreaM2.value) || 0;
-            const indice = parseFloat(checkbox.dataset.indice);
-            
-            // CONVERSÃO INTERNA: Área afetada convertida para hectares
-            const areaAfetadaHa = areaAfetadaM2 / 10000;
-            
-            // Impacto = (Área em ha * Valor por ha) * (Multiplicador - 1)
-            const impacto = (areaAfetadaHa * vUnitarioHectare) * (indice - 1);
-            total += impacto;
+            const areaAfetadaHa = (parseFloat(row.querySelector('.area-afetada-input').value) || 0) / 10000;
+            total += (areaAfetadaHa * loc.valorPorHectare) * (parseFloat(checkbox.dataset.indice) - 1);
         }
     });
 
     valorFinalCalculado = total;
     document.getElementById('itbi-valor-final').value = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    // --- LÓGICA DE COMPARAÇÃO ---
+    if (valorContribuinte > 0) {
+        const painel = document.getElementById('painel-comparativo');
+        const texto = document.getElementById('comparativo-texto');
+        painel.style.display = 'block';
+
+        const diferenca = valorContribuinte - total;
+        const percentual = (diferenca / total) * 100;
+
+        if (diferenca < 0) {
+            painel.className = "comparativo-card comparativo-alerta";
+            texto.innerHTML = `O valor informado está <span class="texto-destaque">${Math.abs(percentual).toFixed(2)}% ABAIXO</span> da pauta fiscal. Diferença negativa de ${Math.abs(diferenca).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}.`;
+        } else {
+            painel.className = "comparativo-card comparativo-ok";
+            texto.innerHTML = `O valor informado está <span class="texto-destaque">${percentual.toFixed(2)}% ACIMA</span> da pauta fiscal. Diferença positiva de ${diferenca.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}.`;
+        }
+    } else {
+        document.getElementById('painel-comparativo').style.display = 'none';
+    }
 }
+
+// --- ADICIONE O LISTENER PARA O NOVO CAMPO ---
+document.getElementById('itbi-valor-contribuinte').oninput = calcularValorFinal;
+
+// --- ATUALIZE A FUNÇÃO DE SALVAMENTO ---
+document.getElementById('btnSalvarITBI').onclick = async () => {
+    const areaM2 = document.getElementById('itbi-area').value;
+    const vContribuinte = parseFloat(document.getElementById('itbi-valor-contribuinte').value) || 0;
+    
+    if(valorFinalCalculado <= 0) return alert("Cálculo incompleto.");
+
+    await addDoc(collection(db, "avaliacoes"), {
+        localidadeNome: document.getElementById('itbi-localidade').selectedOptions[0].text,
+        areaM2: areaM2,
+        valorFinal: valorFinalCalculado,
+        valorContribuinte: vContribuinte, // Campo novo no banco
+        dataCadastro: new Date()
+    });
+    alert("Avaliação e comparativo salvos!");
+};
 
 // --- ESCUTAS EM TEMPO REAL ---
 

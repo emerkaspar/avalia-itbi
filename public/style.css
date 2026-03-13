@@ -104,3 +104,28 @@ th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
     .sidebar h3, .nav-links span { display: none; }
     .content { margin-left: 70px; }
 }
+
+.comparativo-card {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    border-left: 5px solid #ccc;
+}
+
+.comparativo-alerta {
+    border-left-color: #e74c3c;
+    background: #fdf2f2;
+    color: #c0392b;
+}
+
+.comparativo-ok {
+    border-left-color: #27ae60;
+    background: #f2faf5;
+    color: #1e8449;
+}
+
+.texto-destaque {
+    font-weight: bold;
+    text-decoration: underline;
+}
