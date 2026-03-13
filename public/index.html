@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de ITBI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Calculadora Média de ITBI</h2>
+        
+        <div class="form-group">
+            <label for="bairro">Bairro/Região:</label>
+            <input type="text" id="bairro" placeholder="Ex: Centro">
+        </div>
+
+        <div class="form-group">
+            <label for="valorAvaliacao">Valor da Avaliação (R$):</label>
+            <input type="number" id="valorAvaliacao" placeholder="Ex: 250000">
+        </div>
+
+        <button onclick="adicionarDado()">Adicionar à Análise</button>
+
+        <div class="resultados">
+            <h3>Média da Região: R$ <span id="resultadoMedia">0,00</span></h3>
+            <p>Total de imóveis analisados: <span id="totalImoveis">0</span></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
