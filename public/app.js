@@ -1,13 +1,15 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// Configurações mantidas conforme seu arquivo original
 const firebaseConfig = {
-    apiKey: "AIzaSyB3w1X0wdIpXJRnFNAKEjZXMnauhJv0RvI",
-    authDomain: "avalia-itbi.firebaseapp.com",
-    projectId: "avalia-itbi",
-    storageBucket: "avalia-itbi.firebasestorage.app",
-    messagingSenderId: "568434525897",
-    appId: "1:568434525897:web:83d9482966b059c4ecaf18"
+  apiKey: "AIzaSyB3w1X0wdIpXJRnFNAKEjZXMnauhJv0RvI",
+  authDomain: "avalia-itbi.firebaseapp.com",
+  projectId: "avalia-itbi",
+  storageBucket: "avalia-itbi.firebasestorage.app",
+  messagingSenderId: "568434525897",
+  appId: "1:568434525897:web:83d9482966b059c4ecaf18",
+  measurementId: "G-2R9M2VLDZ2"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -16,7 +18,7 @@ const db = getFirestore(app);
 let localidadesBase = [];
 let valorFinalCalculado = 0;
 
-// --- NAVEGAÇÃO ---
+// --- NAVEGAÇÃO ENTRE ABAS ---
 document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
         e.preventDefault();
@@ -26,77 +28,66 @@ document.querySelectorAll('.nav-item').forEach(item => {
     });
 });
 
-// --- MOTOR DE CÁLCULO (CONVERSÃO M² -> HA) ---
-// --- MOTOR DE CÁLCULO ATUALIZADO ---
-function calcularValorFinal() {
+// --- MOTOR DE CÁLCULO (Entrada m² -> Base ha) ---
+function calcularTudo() {
     const areaTotalM2 = parseFloat(document.getElementById('itbi-area').value) || 0;
     const localidadeId = document.getElementById('itbi-localidade').value;
-    const valorContribuinte = parseFloat(document.getElementById('itbi-valor-contribuinte').value) || 0;
+    const vContribuinte = parseFloat(document.getElementById('itbi-valor-contribuinte').value) || 0;
     const loc = localidadesBase.find(l => l.id === localidadeId);
     
     if (!loc || areaTotalM2 <= 0) {
         document.getElementById('itbi-valor-final').value = "R$ 0,00";
         document.getElementById('painel-comparativo').style.display = 'none';
-        valorFinalCalculado = 0;
         return;
     }
 
-    const areaTotalHa = areaTotalM2 / 10000;
-    let total = areaTotalHa * loc.valorPorHectare;
+    // Conversão base: 1 ha = 10.000 m²
+    const vUnitarioHa = loc.valorPorHectare;
+    let totalAcumulado = (areaTotalM2 / 10000) * vUnitarioHa;
 
+    // 1. Fatores de Ajuste (Multiplicadores)
     document.querySelectorAll('.fator-item-row').forEach(row => {
-        const checkbox = row.querySelector('.fator-checkbox');
-        if (checkbox.checked) {
-            const areaAfetadaHa = (parseFloat(row.querySelector('.area-afetada-input').value) || 0) / 10000;
-            total += (areaAfetadaHa * loc.valorPorHectare) * (parseFloat(checkbox.dataset.indice) - 1);
+        const cb = row.querySelector('.fator-cb');
+        if (cb.checked) {
+            const areaAfetadaHa = (parseFloat(row.querySelector('.fator-area').value) || 0) / 10000;
+            const indice = parseFloat(cb.dataset.indice);
+            totalAcumulado += (areaAfetadaHa * vUnitarioHa) * (indice - 1);
         }
     });
 
-    valorFinalCalculado = total;
-    document.getElementById('itbi-valor-final').value = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-    // --- LÓGICA DE COMPARAÇÃO ---
-    if (valorContribuinte > 0) {
-        const painel = document.getElementById('painel-comparativo');
-        const texto = document.getElementById('comparativo-texto');
-        painel.style.display = 'block';
-
-        const diferenca = valorContribuinte - total;
-        const percentual = (diferenca / total) * 100;
-
-        if (diferenca < 0) {
-            painel.className = "comparativo-card comparativo-alerta";
-            texto.innerHTML = `O valor informado está <span class="texto-destaque">${Math.abs(percentual).toFixed(2)}% ABAIXO</span> da pauta fiscal. Diferença negativa de ${Math.abs(diferenca).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}.`;
-        } else {
-            painel.className = "comparativo-card comparativo-ok";
-            texto.innerHTML = `O valor informado está <span class="texto-destaque">${percentual.toFixed(2)}% ACIMA</span> da pauta fiscal. Diferença positiva de ${diferenca.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}.`;
+    // 2. Plantações (Valorização Aditiva)
+    document.querySelectorAll('.plantacao-item-row').forEach(row => {
+        const cb = row.querySelector('.pl-cb');
+        if (cb.checked) {
+            const areaPlHa = (parseFloat(row.querySelector('.pl-area').value) || 0) / 10000;
+            const valorPlHa = parseFloat(cb.dataset.valorha);
+            totalAcumulado += areaPlHa * valorPlHa;
         }
+    });
+
+    valorFinalCalculado = totalAcumulado;
+    document.getElementById('itbi-valor-final').value = totalAcumulado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    // 3. Comparativo com Contribuinte
+    const painel = document.getElementById('painel-comparativo');
+    if (vContribuinte > 0) {
+        painel.style.display = 'block';
+        const dif = vContribuinte - totalAcumulado;
+        const perc = (dif / totalAcumulado) * 100;
+        
+        const cor = dif < 0 ? "#e74c3c" : "#27ae60";
+        const status = dif < 0 ? "ABAIXO" : "ACIMA";
+        
+        document.getElementById('comparativo-texto').innerHTML = 
+            `O valor informado está <b style="color:${cor}">${Math.abs(perc).toFixed(2)}% ${status}</b> da pauta fiscal.<br>
+             Diferença: <b>${dif.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</b>`;
+        painel.style.borderLeftColor = cor;
     } else {
-        document.getElementById('painel-comparativo').style.display = 'none';
+        painel.style.display = 'none';
     }
 }
 
-// --- ADICIONE O LISTENER PARA O NOVO CAMPO ---
-document.getElementById('itbi-valor-contribuinte').oninput = calcularValorFinal;
-
-// --- ATUALIZE A FUNÇÃO DE SALVAMENTO ---
-document.getElementById('btnSalvarITBI').onclick = async () => {
-    const areaM2 = document.getElementById('itbi-area').value;
-    const vContribuinte = parseFloat(document.getElementById('itbi-valor-contribuinte').value) || 0;
-    
-    if(valorFinalCalculado <= 0) return alert("Cálculo incompleto.");
-
-    await addDoc(collection(db, "avaliacoes"), {
-        localidadeNome: document.getElementById('itbi-localidade').selectedOptions[0].text,
-        areaM2: areaM2,
-        valorFinal: valorFinalCalculado,
-        valorContribuinte: vContribuinte, // Campo novo no banco
-        dataCadastro: new Date()
-    });
-    alert("Avaliação e comparativo salvos!");
-};
-
-// --- ESCUTAS EM TEMPO REAL ---
+// --- LISTENERS E SINCRONIZAÇÃO (SNAPSHOTS) ---
 
 // Localidades
 onSnapshot(collection(db, "valores_hectare"), (snap) => {
@@ -107,42 +98,63 @@ onSnapshot(collection(db, "valores_hectare"), (snap) => {
     tabela.innerHTML = "";
     localidadesBase.forEach(l => {
         select.innerHTML += `<option value="${l.id}">${l.localidade}</option>`;
-        tabela.innerHTML += `<tr><td>${l.localidade}</td><td>R$ ${l.valorPorHectare}/ha</td><td><button class="btn-delete" onclick="remover('valores_hectare','${l.id}')">Excluir</button></td></tr>`;
+        tabela.innerHTML += `<tr><td>${l.localidade}</td><td>R$ ${l.valorPorHectare}</td><td><button class="btn-delete" onclick="remover('valores_hectare','${l.id}')"><i class="fas fa-trash"></i></button></td></tr>`;
     });
 });
 
-// Fatores (Inputs gerados com placeholder em m²)
+// Fatores
 onSnapshot(collection(db, "fatores"), (snap) => {
     const container = document.getElementById('lista-fatores-selecao');
     const tabela = document.getElementById('tabelaFatores');
-    container.innerHTML = "";
-    tabela.innerHTML = "";
+    container.innerHTML = ""; tabela.innerHTML = "";
     snap.forEach(docSnap => {
         const f = docSnap.data();
-        const impactoPercent = Math.round((f.indice - 1) * 100);
-
         container.innerHTML += `
-            <div class="fator-item-row">
-                <input type="checkbox" class="fator-checkbox" data-indice="${f.indice}" onchange="atualizar()">
-                <span class="fator-nome">${f.nome} (${impactoPercent}%)</span>
-                <input type="number" class="area-afetada-input" placeholder="m² afetados" step="0.01" oninput="atualizar()">
+            <div class="item-row fator-item-row">
+                <input type="checkbox" class="fator-cb" data-indice="${f.indice}" onchange="atualizar()">
+                <span class="item-nome">${f.nome} (${Math.round((f.indice-1)*100)}%)</span>
+                <input type="number" class="fator-area" placeholder="m²" oninput="atualizar()">
             </div>`;
-
-        tabela.innerHTML += `<tr><td>${f.nome}</td><td>${f.indice}</td><td>${impactoPercent}%</td><td><button class="btn-delete" onclick="remover('fatores','${docSnap.id}')">Excluir</button></td></tr>`;
+        tabela.innerHTML += `<tr><td>${f.nome}</td><td>${f.indice}</td><td>${Math.round((f.indice-1)*100)}%</td><td><button class="btn-delete" onclick="remover('fatores','${docSnap.id}')"><i class="fas fa-trash"></i></button></td></tr>`;
     });
 });
 
-// Histórico
+// Plantações
+onSnapshot(collection(db, "plantacoes"), (snap) => {
+    const container = document.getElementById('lista-plantacoes-selecao');
+    const tabela = document.getElementById('tabelaPlantacoes');
+    container.innerHTML = ""; tabela.innerHTML = "";
+    snap.forEach(docSnap => {
+        const p = docSnap.data();
+        container.innerHTML += `
+            <div class="item-row plantacao-item-row">
+                <input type="checkbox" class="pl-cb" data-valorha="${p.valorHectare}" onchange="atualizar()">
+                <span class="item-nome">${p.nome} (R$/ha)</span>
+                <input type="number" class="pl-area" placeholder="m²" oninput="atualizar()">
+            </div>`;
+        tabela.innerHTML += `<tr><td>${p.nome}</td><td>R$ ${p.valorHectare}</td><td><button class="btn-delete" onclick="remover('plantacoes','${docSnap.id}')"><i class="fas fa-trash"></i></button></td></tr>`;
+    });
+});
+
+// Histórico de Avaliações
 onSnapshot(query(collection(db, "avaliacoes"), orderBy("dataCadastro", "desc")), (snap) => {
     const tabela = document.getElementById('tabelaITBI');
     tabela.innerHTML = "";
     snap.forEach(d => {
         const item = d.data();
-        tabela.innerHTML += `<tr><td>${item.dataCadastro.toDate().toLocaleDateString()}</td><td>${item.localidadeNome}</td><td>${item.areaM2} m²</td><td>${item.valorFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td><button class="btn-delete" onclick="remover('avaliacoes','${d.id}')">Excluir</button></td></tr>`;
+        tabela.innerHTML += `
+            <tr>
+                <td>${item.dataCadastro?.toDate().toLocaleDateString() || '--'}</td>
+                <td>${item.localidadeNome}</td>
+                <td>${item.areaM2} m²</td>
+                <td style="color:green; font-weight:bold">${item.valorFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                <td><button class="btn-delete" onclick="remover('avaliacoes','${d.id}')"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
     });
 });
 
-// --- SALVAMENTO ---
+// --- FUNÇÕES DE SALVAMENTO ---
+
 document.getElementById('btnSalvarHectare').onclick = async () => {
     const nome = document.getElementById('loc-nome').value;
     const valor = parseFloat(document.getElementById('loc-valor').value);
@@ -157,19 +169,28 @@ document.getElementById('btnSalvarFator').onclick = async () => {
     document.getElementById('fator-nome').value = ""; document.getElementById('fator-indice').value = "";
 };
 
+document.getElementById('btnSalvarPlantacao').onclick = async () => {
+    const nome = document.getElementById('pl-nome').value;
+    const valor = parseFloat(document.getElementById('pl-valor').value);
+    if(nome && valor) await addDoc(collection(db, "plantacoes"), { nome, valorHectare: valor });
+    document.getElementById('pl-nome').value = ""; document.getElementById('pl-valor').value = "";
+};
+
 document.getElementById('btnSalvarITBI').onclick = async () => {
-    const areaM2 = document.getElementById('itbi-area').value;
-    if(valorFinalCalculado <= 0) return alert("Cálculo incompleto.");
+    if(valorFinalCalculado <= 0) return alert("Realize um cálculo válido!");
     await addDoc(collection(db, "avaliacoes"), {
         localidadeNome: document.getElementById('itbi-localidade').selectedOptions[0].text,
-        areaM2: areaM2,
+        areaM2: document.getElementById('itbi-area').value,
         valorFinal: valorFinalCalculado,
+        valorContribuinte: parseFloat(document.getElementById('itbi-valor-contribuinte').value) || 0,
         dataCadastro: new Date()
     });
     alert("Avaliação arquivada!");
 };
 
-window.atualizar = calcularValorFinal;
-document.getElementById('itbi-area').oninput = calcularValorFinal;
-document.getElementById('itbi-localidade').onchange = calcularValorFinal;
-window.remover = async (col, id) => { if(confirm("Confirmar exclusão?")) await deleteDoc(doc(db, col, id)); };
+// --- UTILITÁRIOS ---
+window.atualizar = calcularTudo;
+document.getElementById('itbi-area').oninput = calcularTudo;
+document.getElementById('itbi-localidade').onchange = calcularTudo;
+document.getElementById('itbi-valor-contribuinte').oninput = calcularTudo;
+window.remover = async (col, id) => { if(confirm("Excluir registro?")) await deleteDoc(doc(db, col, id)); };
