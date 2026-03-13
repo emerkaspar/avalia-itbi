@@ -3,31 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Análise de ITBI</title>
+    <title>Análise de ITBI - Nuvem</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h2>Calculadora Média de ITBI</h2>
+    <div class="container" style="max-width: 800px;">
+        <h2>Registro de ITBI</h2>
         
-        <div class="form-group">
-            <label for="bairro">Bairro/Região:</label>
-            <input type="text" id="bairro" placeholder="Ex: Centro">
+        <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 1;">
+                <label for="ano">Ano da Avaliação:</label>
+                <input type="number" id="ano" placeholder="Ex: 2024">
+            </div>
+            <div class="form-group" style="flex: 2;">
+                <label for="bairro">Localidade/Bairro:</label>
+                <input type="text" id="bairro" placeholder="Ex: Centro">
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="valorAvaliacao">Valor da Avaliação (R$):</label>
-            <input type="number" id="valorAvaliacao" placeholder="Ex: 250000">
+        <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 1;">
+                <label for="area">Área do Imóvel (m²):</label>
+                <input type="number" id="area" placeholder="Ex: 150">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label for="valor">Valor Avaliado (R$):</label>
+                <input type="number" id="valor" placeholder="Ex: 250000">
+            </div>
         </div>
 
-        <button onclick="adicionarDado()">Adicionar à Análise</button>
+        <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 1;">
+                <label for="lat">Latitude (Mapa):</label>
+                <input type="text" id="lat" placeholder="Ex: -29.1234">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label for="lng">Longitude (Mapa):</label>
+                <input type="text" id="lng" placeholder="Ex: -51.1234">
+            </div>
+        </div>
 
-        <div class="resultados">
-            <h3>Média da Região: R$ <span id="resultadoMedia">0,00</span></h3>
-            <p>Total de imóveis analisados: <span id="totalImoveis">0</span></p>
+        <button id="btnSalvar">Salvar no Banco de Dados</button>
+
+        <div class="resultados" style="margin-top: 30px;">
+            <h3>Histórico de Avaliações Salvas</h3>
+            <table style="width: 100%; text-align: left; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #ccc;">
+                        <th>Ano</th>
+                        <th>Bairro</th>
+                        <th>Área</th>
+                        <th>Valor Total</th>
+                        <th>Valor/m²</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaDados">
+                    </tbody>
+            </table>
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>

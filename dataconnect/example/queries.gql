@@ -1,0 +1,45 @@
+query ListPublicMovieLists @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public as it only retrieves public movie lists.") {
+  movieLists(where: {isPublic: {eq: true}}, orderBy: [{createdAt: DESC}]) {
+    id
+    name
+    description
+    user {
+      displayName
+    }
+  }
+}
+
+query GetMyMovieLists @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users as it only retrieves their own movie lists.") {
+  movieLists(where: {userId: {eq_expr: "auth.uid"}}, orderBy: [{updatedAt: DESC}]) {
+    id
+    name
+    isPublic
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateMovieReview($movieId: UUID!, $rating: Int!, $reviewText: String, $isPublic: Boolean!) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users as it allows them to create their own movie reviews.") {
+  review_insert(data: {
+    movieId: $movieId,
+    userId_expr: "auth.uid",
+    rating: $rating,
+    reviewText: $reviewText,
+    isPublic: $isPublic,
+    createdAt_expr: "request.time",
+    updatedAt_expr: "request.time",
+    watch: {
+      id_expr: "uuidV4()"
+    }
+  })
+}
+
+mutation UpdateUserProfile($displayName: String!, $photoUrl: String) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users as it allows them to update their own profile.") {
+  user_update(
+    key: {id_expr: "auth.uid"},
+    data: {
+      displayName: $displayName,
+      photoUrl: $photoUrl
+    }
+  )
+}
