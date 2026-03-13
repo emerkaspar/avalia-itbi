@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB3w1X0wdIpXJRnFNAKEjZXMnauhJv0RvI",
@@ -13,123 +13,160 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Estados para cálculo dinâmico
+let localidadesBase = [];
+let valorFinalCalculado = 0;
+
 // --- NAVEGAÇÃO ---
 document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
         e.preventDefault();
-        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-        
+        document.querySelectorAll('.nav-item, .tab-content').forEach(el => el.classList.remove('active'));
         item.classList.add('active');
-        const target = item.getAttribute('data-target');
-        document.getElementById(target).classList.add('active');
+        document.getElementById(item.getAttribute('data-target')).classList.add('active');
     });
 });
 
-// --- FUNCIONALIDADES ITBI ---
-async function salvarITBI() {
-    const ano = document.getElementById('ano').value;
-    const bairro = document.getElementById('bairro').value;
-    const area = parseFloat(document.getElementById('area').value);
-    const valorTotal = parseFloat(document.getElementById('valor').value);
-
-    if (!ano || !bairro || isNaN(area) || isNaN(valorTotal)) {
-        return alert("Por favor, preencha todos os campos obrigatórios.");
-    }
-
-    const valorM2 = valorTotal / area;
+// --- MOTOR DE CÁLCULO ---
+function calcularValorFinal() {
+    const area = parseFloat(document.getElementById('itbi-area').value) || 0;
+    const localidadeId = document.getElementById('itbi-localidade').value;
+    const localidade = localidadesBase.find(l => l.id === localidadeId);
     
-    try {
-        await addDoc(collection(db, "avaliacoes"), {
-            ano, bairro, area, valorTotal,
-            valorMetroQuadrado: valorM2,
-            dataCadastro: new Date()
-        });
-        alert("Avaliação registrada com sucesso!");
-        document.querySelectorAll('#secao-itbi input').forEach(i => i.value = '');
-    } catch (e) {
-        console.error("Erro ao salvar ITBI:", e);
-    }
-}
-
-// --- FUNCIONALIDADES HECTARE ---
-async function salvarHectare() {
-    const nome = document.getElementById('loc-nome').value;
-    const valorHectare = parseFloat(document.getElementById('loc-valor').value);
-
-    if (!nome || isNaN(valorHectare)) {
-        return alert("Informe a localidade e o valor por hectare.");
+    if (!localidade || area <= 0) {
+        document.getElementById('itbi-valor-final').value = "R$ 0,00";
+        valorFinalCalculado = 0;
+        return;
     }
 
-    try {
-        await addDoc(collection(db, "valores_hectare"), {
-            localidade: nome,
-            valorPorHectare: valorHectare,
-            dataAtualizacao: new Date()
-        });
-        alert("Localidade cadastrada!");
-        document.getElementById('loc-nome').value = '';
-        document.getElementById('loc-valor').value = '';
-    } catch (e) {
-        console.error("Erro ao salvar hectare:", e);
-    }
-}
-
-// --- MONITORAMENTO EM TEMPO REAL ---
-function iniciarEscuta() {
-    // Escuta Avaliações ITBI
-    onSnapshot(collection(db, "avaliacoes"), (snap) => {
-        const corpoTabela = document.getElementById('tabelaITBI');
-        corpoTabela.innerHTML = "";
-        snap.forEach(documento => {
-            const d = documento.data();
-            corpoTabela.innerHTML += `
-                <tr>
-                    <td>${d.ano}</td>
-                    <td>${d.bairro}</td>
-                    <td>${d.area} m²</td>
-                    <td>${d.valorTotal.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</td>
-                    <td>${d.valorMetroQuadrado.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</td>
-                    <td>
-                        <button class="btn-delete" onclick="removerRegistro('avaliacoes', '${documento.id}')">
-                            <i class="fas fa-trash"></i> Excluir
-                        </button>
-                    </td>
-                </tr>`;
-        });
+    let resultado = localidade.valorPorHectare * area;
+    
+    // Aplica multiplicadores dos checkboxes marcados
+    document.querySelectorAll('.fator-checkbox:checked').forEach(cb => {
+        resultado *= parseFloat(cb.dataset.indice);
     });
 
-    // Escuta Valores por Hectare
-    onSnapshot(collection(db, "valores_hectare"), (snap) => {
-        const corpoTabela = document.getElementById('tabelaHectares');
-        corpoTabela.innerHTML = "";
-        snap.forEach(documento => {
-            const d = documento.data();
-            corpoTabela.innerHTML += `
-                <tr>
-                    <td>${d.localidade}</td>
-                    <td>${d.valorPorHectare.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</td>
-                    <td>
-                        <button class="btn-delete" onclick="removerRegistro('valores_hectare', '${documento.id}')">
-                            <i class="fas fa-trash"></i> Excluir
-                        </button>
-                    </td>
-                </tr>`;
-        });
-    });
+    valorFinalCalculado = resultado;
+    document.getElementById('itbi-valor-final').value = resultado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-window.removerRegistro = async (colecao, id) => {
-    if (confirm("Deseja realmente excluir este registro?")) {
-        try {
-            await deleteDoc(doc(db, colecao, id));
-        } catch (e) {
-            console.error("Erro ao excluir:", e);
-        }
-    }
+// --- ESCUTAS EM TEMPO REAL (FIRESTORE) ---
+
+// 1. Escuta Localidades
+onSnapshot(collection(db, "valores_hectare"), (snap) => {
+    localidadesBase = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Atualiza Select na Calculadora
+    const select = document.getElementById('itbi-localidade');
+    select.innerHTML = '<option value="">Selecione...</option>';
+    localidadesBase.forEach(loc => {
+        select.innerHTML += `<option value="${loc.id}">${loc.localidade} (R$ ${loc.valorPorHectare}/ha)</option>`;
+    });
+
+    // Atualiza Tabela de Referência
+    const tabela = document.getElementById('tabelaHectares');
+    tabela.innerHTML = "";
+    localidadesBase.forEach(loc => {
+        tabela.innerHTML += `
+            <tr>
+                <td>${loc.localidade}</td>
+                <td>${loc.valorPorHectare.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</td>
+                <td><button class="btn-delete" onclick="removerRegistro('valores_hectare', '${loc.id}')"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+    });
+});
+
+// 2. Escuta Fatores
+onSnapshot(collection(db, "fatores"), (snap) => {
+    const container = document.getElementById('lista-fatores-selecao');
+    const tabela = document.getElementById('tabelaFatores');
+    
+    container.innerHTML = "";
+    tabela.innerHTML = "";
+
+    snap.forEach(documento => {
+        const f = documento.data();
+        const impacto = Math.round((f.indice - 1) * 100);
+        const classeImpacto = f.indice >= 1 ? 'val' : 'desv';
+
+        // Checkbox para calculadora
+        container.innerHTML += `
+            <label class="checkbox-item">
+                <input type="checkbox" class="fator-checkbox" data-indice="${f.indice}" onchange="calcular()">
+                ${f.nome} (${impacto > 0 ? '+' : ''}${impacto}%)
+            </label>`;
+        
+        // Linha na tabela de gestão
+        tabela.innerHTML += `
+            <tr>
+                <td>${f.nome}</td>
+                <td>${f.indice}</td>
+                <td><span class="impacto-badge ${classeImpacto}">${impacto}%</span></td>
+                <td><button class="btn-delete" onclick="removerRegistro('fatores', '${documento.id}')"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+    });
+});
+
+// 3. Escuta Histórico de Avaliações
+onSnapshot(query(collection(db, "avaliacoes"), orderBy("dataCadastro", "desc")), (snap) => {
+    const tabela = document.getElementById('tabelaITBI');
+    tabela.innerHTML = "";
+    snap.forEach(documento => {
+        const d = documento.data();
+        const data = d.dataCadastro?.toDate().toLocaleDateString('pt-BR') || '---';
+        tabela.innerHTML += `
+            <tr>
+                <td>${data}</td>
+                <td>${d.localidadeNome}</td>
+                <td>${d.area}</td>
+                <td>${d.valorFinal.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</td>
+                <td><button class="btn-delete" onclick="removerRegistro('avaliacoes', '${documento.id}')"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+    });
+});
+
+// --- FUNÇÕES DE SALVAMENTO ---
+
+document.getElementById('btnSalvarHectare').onclick = async () => {
+    const localidade = document.getElementById('loc-nome').value;
+    const valor = parseFloat(document.getElementById('loc-valor').value);
+    if (!localidade || isNaN(valor)) return alert("Preencha os campos!");
+    await addDoc(collection(db, "valores_hectare"), { localidade, valorPorHectare: valor });
+    document.getElementById('loc-nome').value = ""; document.getElementById('loc-valor').value = "";
 };
 
-document.getElementById('btnSalvarITBI').addEventListener('click', salvarITBI);
-document.getElementById('btnSalvarHectare').addEventListener('click', salvarHectare);
+document.getElementById('btnSalvarFator').onclick = async () => {
+    const nome = document.getElementById('fator-nome').value;
+    const indice = parseFloat(document.getElementById('fator-indice').value);
+    if (!nome || isNaN(indice)) return alert("Preencha os campos!");
+    await addDoc(collection(db, "fatores"), { nome, indice });
+    document.getElementById('fator-nome').value = ""; document.getElementById('fator-indice').value = "";
+};
 
-iniciarEscuta();
+document.getElementById('btnSalvarITBI').onclick = async () => {
+    const area = parseFloat(document.getElementById('itbi-area').value);
+    const localidadeId = document.getElementById('itbi-localidade').value;
+    const loc = localidadesBase.find(l => l.id === localidadeId);
+
+    if (!loc || isNaN(area) || valorFinalCalculado <= 0) return alert("Realize um cálculo válido antes de salvar!");
+
+    await addDoc(collection(db, "avaliacoes"), {
+        ano: document.getElementById('itbi-ano').value,
+        localidadeNome: loc.localidade,
+        area: area,
+        valorFinal: valorFinalCalculado,
+        dataCadastro: new Date()
+    });
+    alert("Avaliação salva no histórico!");
+};
+
+// --- UTILITÁRIOS ---
+window.calcular = calcularValorFinal; // Expõe para o onchange do checkbox
+document.getElementById('itbi-area').oninput = calcularValorFinal;
+document.getElementById('itbi-localidade').onchange = calcularValorFinal;
+
+window.removerRegistro = async (colecao, id) => {
+    if (confirm("Deseja excluir este registro permanentemente?")) {
+        await deleteDoc(doc(db, colecao, id));
+    }
+};

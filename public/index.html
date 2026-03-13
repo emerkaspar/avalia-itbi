@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Avalia ITBI - Gestão Imobiliária</title>
+    <title>Avalia ITBI - Inteligência Fiscal</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -14,49 +14,58 @@
                 <h3>Avalia ITBI</h3>
             </div>
             <ul class="nav-links">
-                <li><a href="#" class="nav-item active" data-target="secao-itbi"><i class="fas fa-file-invoice-dollar"></i> Registro de ITBI</a></li>
-                <li><a href="#" class="nav-item" data-target="secao-hectares"><i class="fas fa-map-marked-alt"></i> Valores por Hectare</a></li>
+                <li><a href="#" class="nav-item active" data-target="secao-itbi"><i class="fas fa-calculator"></i> Calculadora ITBI</a></li>
+                <li><a href="#" class="nav-item" data-target="secao-hectares"><i class="fas fa-map-marked-alt"></i> Valores Base</a></li>
+                <li><a href="#" class="nav-item" data-target="secao-fatores"><i class="fas fa-sliders-h"></i> Fatores (V/D)</a></li>
             </ul>
         </nav>
 
         <main class="content">
             
             <section id="secao-itbi" class="tab-content active">
-                <h2><i class="fas fa-calculator"></i> Registro de Avaliação ITBI</h2>
+                <h2><i class="fas fa-file-invoice-dollar"></i> Nova Avaliação de ITBI</h2>
                 <div class="card">
                     <div class="grid-form">
                         <div class="form-group">
-                            <label>Ano da Avaliação:</label>
-                            <input type="number" id="ano" placeholder="Ex: 2024">
+                            <label>Ano:</label>
+                            <input type="number" id="itbi-ano" value="2024">
                         </div>
                         <div class="form-group">
-                            <label>Bairro/Localidade:</label>
-                            <input type="text" id="bairro" placeholder="Ex: Centro">
+                            <label>Localidade (Valor Base):</label>
+                            <select id="itbi-localidade">
+                                <option value="">Carregando localidades...</option>
+                            </select>
                         </div>
                         <div class="form-group">
-                            <label>Área (m²):</label>
-                            <input type="number" id="area" placeholder="Ex: 150">
+                            <label>Área Total (Hectares):</label>
+                            <input type="number" id="itbi-area" step="0.0001" placeholder="Ex: 5.25">
                         </div>
                         <div class="form-group">
-                            <label>Valor Avaliado (R$):</label>
-                            <input type="number" id="valor" placeholder="Ex: 350000">
+                            <label>Valor Calculado Final:</label>
+                            <input type="text" id="itbi-valor-final" readonly class="highlight-input" value="R$ 0,00">
                         </div>
                     </div>
-                    <button id="btnSalvarITBI" class="btn-primary">Salvar Avaliação</button>
+
+                    <div class="fatores-container">
+                        <h4>Fatores de Ajuste Aplicáveis:</h4>
+                        <div id="lista-fatores-selecao" class="checkbox-grid">
+                            </div>
+                    </div>
+                    
+                    <button id="btnSalvarITBI" class="btn-primary mt-20">Salvar Avaliação no Histórico</button>
                 </div>
 
                 <div class="card mt-20">
-                    <h3>Histórico de Avaliações</h3>
+                    <h3>Histórico de Avaliações Realizadas</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Ano</th>
-                                    <th>Bairro</th>
-                                    <th>Área</th>
-                                    <th>Valor Total</th>
-                                    <th>Valor/m²</th>
-                                    <th style="width: 120px;">Ações</th>
+                                    <th>Data</th>
+                                    <th>Localidade</th>
+                                    <th>Área (ha)</th>
+                                    <th>Valor Final</th>
+                                    <th style="width: 100px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="tabelaITBI"></tbody>
@@ -66,33 +75,68 @@
             </section>
 
             <section id="secao-hectares" class="tab-content">
-                <h2><i class="fas fa-map-marked-alt"></i> Valores de Referência por Hectare</h2>
+                <h2><i class="fas fa-map-marked-alt"></i> Gestão de Valores por Localidade</h2>
                 <div class="card">
                     <div class="grid-form">
                         <div class="form-group" style="grid-column: span 2;">
                             <label>Nome da Localidade:</label>
-                            <input type="text" id="loc-nome" placeholder="Ex: Linha Santa Cruz">
+                            <input type="text" id="loc-nome" placeholder="Ex: Batinga Sul">
                         </div>
                         <div class="form-group">
-                            <label>Valor por Hectare (R$):</label>
-                            <input type="number" id="loc-valor" placeholder="Ex: 80000">
+                            <label>Valor Base por Hectare (R$):</label>
+                            <input type="number" id="loc-valor" placeholder="30000">
                         </div>
                     </div>
-                    <button id="btnSalvarHectare" class="btn-secondary">Cadastrar Localidade</button>
+                    <button id="btnSalvarHectare" class="btn-secondary">Cadastrar Valor Base</button>
                 </div>
 
                 <div class="card mt-20">
-                    <h3>Tabela de Preços por Localidade</h3>
+                    <h3>Tabela de Preços Referenciais</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
                                     <th>Localidade</th>
                                     <th>Valor/Hectare</th>
-                                    <th style="width: 120px;">Ações</th>
+                                    <th style="width: 100px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="tabelaHectares"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="secao-fatores" class="tab-content">
+                <h2><i class="fas fa-sliders-h"></i> Configuração de Fatores de Ajuste</h2>
+                <div class="card">
+                    <p>Defina multiplicadores: 1.10 (+10%), 0.85 (-15%), etc.</p>
+                    <div class="grid-form">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Descrição do Fator:</label>
+                            <input type="text" id="fator-nome" placeholder="Ex: Acesso Asfaltado">
+                        </div>
+                        <div class="form-group">
+                            <label>Índice Multiplicador:</label>
+                            <input type="number" id="fator-indice" step="0.01" placeholder="1.10">
+                        </div>
+                    </div>
+                    <button id="btnSalvarFator" class="btn-secondary">Cadastrar Fator</button>
+                </div>
+
+                <div class="card mt-20">
+                    <h3>Fatores Ativos</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Descrição</th>
+                                    <th>Índice</th>
+                                    <th>Impacto</th>
+                                    <th style="width: 100px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaFatores"></tbody>
                         </table>
                     </div>
                 </div>

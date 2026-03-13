@@ -153,3 +153,45 @@ th {
     .sidebar-header h3, .nav-links a span { display: none; }
     .content { margin-left: 70px; padding: 20px; }
 }
+
+/* ... manter o anterior e adicionar: ... */
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #eee;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.checkbox-item input {
+    width: auto;
+    margin-right: 10px;
+}
+
+.highlight-input {
+    background-color: #e8f4fd !important;
+    font-weight: bold;
+    color: #2980b9;
+    font-size: 1.2rem !important;
+    border: 2px solid #3498db !important;
+}
+
+.impacto-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.val { background: #d4edda; color: #155724; }
+.desv { background: #f8d7da; color: #721c24; }
