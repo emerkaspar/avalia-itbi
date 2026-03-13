@@ -26,44 +26,49 @@ document.querySelectorAll('.nav-item').forEach(item => {
     });
 });
 
-// --- MOTOR DE CÁLCULO (Lógica de Área Parcial) ---
+// --- MOTOR DE CÁLCULO (CONVERSÃO M² -> HA) ---
 function calcularValorFinal() {
-    const areaTotal = parseFloat(document.getElementById('itbi-area').value) || 0;
+    const areaTotalM2 = parseFloat(document.getElementById('itbi-area').value) || 0;
     const localidadeId = document.getElementById('itbi-localidade').value;
     const loc = localidadesBase.find(l => l.id === localidadeId);
     
-    if (!loc || areaTotal <= 0) {
+    if (!loc || areaTotalM2 <= 0) {
         document.getElementById('itbi-valor-final').value = "R$ 0,00";
         valorFinalCalculado = 0;
         return;
     }
 
-    const vUnitario = loc.valorPorHectare;
-    let total = areaTotal * vUnitario;
+    // CONVERSÃO INTERNA: 1 ha = 10.000 m²
+    const areaTotalHa = areaTotalM2 / 10000;
+    const vUnitarioHectare = loc.valorPorHectare;
+    
+    let total = areaTotalHa * vUnitarioHectare;
 
-    // Calcula impactos individuais
+    // Processa cada fator de ajuste marcado
     document.querySelectorAll('.fator-item-row').forEach(row => {
         const checkbox = row.querySelector('.fator-checkbox');
-        const inputArea = row.querySelector('.area-afetada-input');
+        const inputAreaM2 = row.querySelector('.area-afetada-input');
         
         if (checkbox.checked) {
-            const areaAfetada = parseFloat(inputArea.value) || 0;
+            const areaAfetadaM2 = parseFloat(inputAreaM2.value) || 0;
             const indice = parseFloat(checkbox.dataset.indice);
             
-            // Impacto = (Área * Valor Base) * (Diferencial do Índice)
-            // Ex: Índice 0.70 causa um impacto de -0.30 (30% de desconto)
-            const impacto = (areaAfetada * vUnitario) * (indice - 1);
+            // CONVERSÃO INTERNA: Área afetada convertida para hectares
+            const areaAfetadaHa = areaAfetadaM2 / 10000;
+            
+            // Impacto = (Área em ha * Valor por ha) * (Multiplicador - 1)
+            const impacto = (areaAfetadaHa * vUnitarioHectare) * (indice - 1);
             total += impacto;
         }
     });
 
     valorFinalCalculado = total;
-    document.getElementById('itbi-valor-final').value = total.toLocaleString('pt-PT', { style: 'currency', currency: 'BRL' });
+    document.getElementById('itbi-valor-final').value = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// --- ESCUTAS FIRESTORE ---
+// --- ESCUTAS EM TEMPO REAL ---
 
-// 1. Localidades
+// Localidades
 onSnapshot(collection(db, "valores_hectare"), (snap) => {
     localidadesBase = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     const select = document.getElementById('itbi-localidade');
@@ -72,11 +77,11 @@ onSnapshot(collection(db, "valores_hectare"), (snap) => {
     tabela.innerHTML = "";
     localidadesBase.forEach(l => {
         select.innerHTML += `<option value="${l.id}">${l.localidade}</option>`;
-        tabela.innerHTML += `<tr><td>${l.localidade}</td><td>R$ ${l.valorPorHectare}</td><td><button class="btn-delete" onclick="remover('valores_hectare','${l.id}')">Excluir</button></td></tr>`;
+        tabela.innerHTML += `<tr><td>${l.localidade}</td><td>R$ ${l.valorPorHectare}/ha</td><td><button class="btn-delete" onclick="remover('valores_hectare','${l.id}')">Excluir</button></td></tr>`;
     });
 });
 
-// 2. Fatores
+// Fatores (Inputs gerados com placeholder em m²)
 onSnapshot(collection(db, "fatores"), (snap) => {
     const container = document.getElementById('lista-fatores-selecao');
     const tabela = document.getElementById('tabelaFatores');
@@ -86,51 +91,52 @@ onSnapshot(collection(db, "fatores"), (snap) => {
         const f = docSnap.data();
         const impactoPercent = Math.round((f.indice - 1) * 100);
 
-        // Row na calculadora
         container.innerHTML += `
             <div class="fator-item-row">
                 <input type="checkbox" class="fator-checkbox" data-indice="${f.indice}" onchange="atualizar()">
                 <span class="fator-nome">${f.nome} (${impactoPercent}%)</span>
-                <input type="number" class="area-afetada-input" placeholder="ha afetados" step="0.01" oninput="atualizar()">
+                <input type="number" class="area-afetada-input" placeholder="m² afetados" step="0.01" oninput="atualizar()">
             </div>`;
 
-        // Linha na tabela de gestão
         tabela.innerHTML += `<tr><td>${f.nome}</td><td>${f.indice}</td><td>${impactoPercent}%</td><td><button class="btn-delete" onclick="remover('fatores','${docSnap.id}')">Excluir</button></td></tr>`;
     });
 });
 
-// 3. Histórico de ITBI
+// Histórico
 onSnapshot(query(collection(db, "avaliacoes"), orderBy("dataCadastro", "desc")), (snap) => {
     const tabela = document.getElementById('tabelaITBI');
     tabela.innerHTML = "";
     snap.forEach(d => {
         const item = d.data();
-        tabela.innerHTML += `<tr><td>${item.dataCadastro.toDate().toLocaleDateString()}</td><td>${item.localidadeNome}</td><td>${item.area} ha</td><td>${item.valorFinal.toLocaleString('pt-PT',{style:'currency',currency:'BRL'})}</td><td><button class="btn-delete" onclick="remover('avaliacoes','${d.id}')">Excluir</button></td></tr>`;
+        tabela.innerHTML += `<tr><td>${item.dataCadastro.toDate().toLocaleDateString()}</td><td>${item.localidadeNome}</td><td>${item.areaM2} m²</td><td>${item.valorFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td><button class="btn-delete" onclick="remover('avaliacoes','${d.id}')">Excluir</button></td></tr>`;
     });
 });
 
-// --- OPERAÇÕES ---
+// --- SALVAMENTO ---
 document.getElementById('btnSalvarHectare').onclick = async () => {
     const nome = document.getElementById('loc-nome').value;
     const valor = parseFloat(document.getElementById('loc-valor').value);
     if(nome && valor) await addDoc(collection(db, "valores_hectare"), { localidade: nome, valorPorHectare: valor });
+    document.getElementById('loc-nome').value = ""; document.getElementById('loc-valor').value = "";
 };
 
 document.getElementById('btnSalvarFator').onclick = async () => {
     const nome = document.getElementById('fator-nome').value;
     const indice = parseFloat(document.getElementById('fator-indice').value);
     if(nome && indice) await addDoc(collection(db, "fatores"), { nome, indice });
+    document.getElementById('fator-nome').value = ""; document.getElementById('fator-indice').value = "";
 };
 
 document.getElementById('btnSalvarITBI').onclick = async () => {
-    if(valorFinalCalculado <= 0) return alert("Cálculo inválido!");
+    const areaM2 = document.getElementById('itbi-area').value;
+    if(valorFinalCalculado <= 0) return alert("Cálculo incompleto.");
     await addDoc(collection(db, "avaliacoes"), {
         localidadeNome: document.getElementById('itbi-localidade').selectedOptions[0].text,
-        area: document.getElementById('itbi-area').value,
+        areaM2: areaM2,
         valorFinal: valorFinalCalculado,
         dataCadastro: new Date()
     });
-    alert("Avaliação guardada com sucesso!");
+    alert("Avaliação arquivada!");
 };
 
 window.atualizar = calcularValorFinal;
