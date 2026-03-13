@@ -168,3 +168,76 @@ th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
     border-left: 5px solid #3498db;
     background: #eef7fe;
 }
+
+/* Centralização da Tela de Login */
+.login-container {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--primary);
+}
+
+.login-card {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.login-card h2 { margin: 20px 0 10px; color: var(--primary); }
+.login-card p { color: #666; margin-bottom: 25px; }
+
+.error-msg { color: var(--danger); font-size: 0.8rem; margin-top: 10px; }
+
+.btn-logout {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+.btn-logout:hover { background: var(--danger); border-color: var(--danger); }
+
+.sidebar-footer {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+}
+
+.btn-google {
+    width: 100%;
+    padding: 10px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.3s;
+    margin-bottom: 15px;
+}
+
+.btn-google:hover { background: #f8f9fa; border-color: #ccc; }
+
+.separator {
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    line-height: 0.1em;
+    margin: 20px 0;
+    color: #999;
+    font-size: 0.8rem;
+}
+
+.separator span { background: #fff; padding: 0 10px; }
