@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB3w1X0wdIpXJRnFNAKEjZXMnauhJv0RvI",
@@ -14,12 +14,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
 
 let localidadesBase = [];
 let valorFinalCalculado = 0;
 
-// --- SEGURANÇA E AUTH ---
+// --- GESTÃO DE AUTENTICAÇÃO ---
 onAuthStateChanged(auth, (user) => {
     const loginUI = document.getElementById('login-overlay');
     const appUI = document.getElementById('app-wrapper');
@@ -27,28 +26,29 @@ onAuthStateChanged(auth, (user) => {
         loginUI.style.display = 'none';
         appUI.style.display = 'flex';
         document.getElementById('user-display').innerText = user.email;
-        iniciarApp();
+        iniciarSincronizacao();
     } else {
         loginUI.style.display = 'flex';
         appUI.style.display = 'none';
     }
 });
 
-document.getElementById('btnGoogle').onclick = async () => {
-    try { await signInWithPopup(auth, provider); }
-    catch (e) { document.getElementById('login-erro').innerText = "Erro ao logar com Google."; }
-};
-
+// Login por E-mail
 document.getElementById('btnLogar').onclick = async () => {
     const email = document.getElementById('login-email').value;
     const senha = document.getElementById('login-senha').value;
-    try { await signInWithEmailAndPassword(auth, email, senha); }
-    catch (e) { document.getElementById('login-erro').innerText = "E-mail ou senha inválidos."; }
+    const erroTxt = document.getElementById('login-erro');
+    try { 
+        await signInWithEmailAndPassword(auth, email, senha); 
+        erroTxt.innerText = "";
+    } catch (e) { 
+        erroTxt.innerText = "E-mail ou senha incorretos."; 
+    }
 };
 
 document.getElementById('btnSair').onclick = () => signOut(auth);
 
-// --- NAVEGAÇÃO ---
+// --- NAVEGAÇÃO ENTRE ABAS ---
 document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
         e.preventDefault();
@@ -58,104 +58,109 @@ document.querySelectorAll('.nav-item').forEach(item => {
     });
 });
 
-// --- MOTOR DE CÁLCULO ---
-function calcular() {
-    const areaM2 = parseFloat(document.getElementById('itbi-area').value) || 0;
+// --- MOTOR DE CÁLCULO (m² para Hectares) ---
+function calcularAvaliacao() {
+    const areaTotalM2 = parseFloat(document.getElementById('itbi-area').value) || 0;
     const localidadeId = document.getElementById('itbi-localidade').value;
     const vDeclarado = parseFloat(document.getElementById('itbi-valor-contribuinte').value) || 0;
     const loc = localidadesBase.find(l => l.id === localidadeId);
     
-    if (!loc || areaM2 <= 0) {
+    if (!loc || areaTotalM2 <= 0) {
         document.getElementById('itbi-valor-final').value = "R$ 0,00";
         document.getElementById('painel-comparativo').style.display = 'none';
+        valorFinalCalculado = 0;
         return;
     }
 
-    const vHa = loc.valorPorHectare;
-    let total = (areaM2 / 10000) * vHa;
+    const valorUnitarioHa = loc.valorPorHectare;
+    let totalAcumulado = (areaTotalM2 / 10000) * valorUnitarioHa;
 
-    // Fatores Multiplicadores (Área parcial)
+    // Fatores de Ajuste (Multiplicadores)
     document.querySelectorAll('.fator-item-row').forEach(row => {
         const cb = row.querySelector('.fator-cb');
         if (cb.checked) {
-            const aHa = (parseFloat(row.querySelector('.fator-area').value) || 0) / 10000;
-            total += (aHa * vHa) * (parseFloat(cb.dataset.indice) - 1);
+            const areaAfetadaHa = (parseFloat(row.querySelector('.fator-area').value) || 0) / 10000;
+            const indice = parseFloat(cb.dataset.indice);
+            totalAcumulado += (areaAfetadaHa * valorUnitarioHa) * (indice - 1);
         }
     });
 
-    // Plantações Aditivas (Área parcial)
+    // Plantações (Valores Aditivos)
     document.querySelectorAll('.plantacao-item-row').forEach(row => {
         const cb = row.querySelector('.pl-cb');
         if (cb.checked) {
-            const aHa = (parseFloat(row.querySelector('.pl-area').value) || 0) / 10000;
-            total += aHa * parseFloat(cb.dataset.valorha);
+            const areaCulturaHa = (parseFloat(row.querySelector('.pl-area').value) || 0) / 10000;
+            const valorCulturaHa = parseFloat(cb.dataset.valorha);
+            totalAcumulado += areaCulturaHa * valorCulturaHa;
         }
     });
 
-    valorFinalCalculado = total;
-    document.getElementById('itbi-valor-final').value = total.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+    valorFinalCalculado = totalAcumulado;
+    document.getElementById('itbi-valor-final').value = totalAcumulado.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 
-    // Comparativo
+    // Painel Comparativo
     const painel = document.getElementById('painel-comparativo');
     if (vDeclarado > 0) {
         painel.style.display = 'block';
-        const dif = vDeclarado - total;
-        const perc = (dif / total) * 100;
-        const cor = dif < 0 ? "#e74c3c" : "#27ae60";
+        const diferenca = vDeclarado - totalAcumulado;
+        const percentual = (diferenca / totalAcumulado) * 100;
+        const cor = diferenca < 0 ? "#e74c3c" : "#27ae60";
         document.getElementById('comparativo-texto').innerHTML = 
-            `Status: <b style="color:${cor}">${perc.toFixed(2)}%</b> em relação à pauta.<br>Diferença: ${dif.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`;
+            `O valor declarado está <b style="color:${cor}">${Math.abs(percentual).toFixed(2)}% ${diferenca < 0 ? 'abaixo' : 'acima'}</b> da pauta fiscal.<br>Diferença: ${diferenca.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`;
     } else { painel.style.display = 'none'; }
 }
 
-// --- SINCRONIZAÇÃO E CRUD ---
-function iniciarApp() {
+// --- SINCRONIZAÇÃO EM TEMPO REAL ---
+function iniciarSincronizacao() {
     onSnapshot(collection(db, "valores_hectare"), snap => {
         localidadesBase = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const sel = document.getElementById('itbi-localidade');
-        const tab = document.getElementById('tabelaHectares');
-        sel.innerHTML = '<option value="">Selecione...</option>';
-        tab.innerHTML = '<thead><tr><th>Localidade</th><th>Valor/ha</th><th>Ações</th></tr></thead><tbody>';
+        const select = document.getElementById('itbi-localidade');
+        const tabela = document.getElementById('tabelaHectares');
+        select.innerHTML = '<option value="">Selecione...</option>';
+        tabela.innerHTML = '<thead><tr><th>Localidade</th><th>Valor/ha</th><th>Ações</th></tr></thead><tbody>';
         localidadesBase.forEach(l => {
-            sel.innerHTML += `<option value="${l.id}">${l.localidade}</option>`;
-            tab.innerHTML += `<tr><td>${l.localidade}</td><td>R$ ${l.valorPorHectare}</td><td><button class="btn-delete" onclick="remover('valores_hectare','${l.id}')">Excluir</button></td></tr>`;
+            select.innerHTML += `<option value="${l.id}">${l.localidade}</option>`;
+            tabela.innerHTML += `<tr><td>${l.localidade}</td><td>R$ ${l.valorPorHectare}</td><td><button class="btn-delete" onclick="remover('valores_hectare','${l.id}')">Excluir</button></td></tr>`;
         });
     });
 
     onSnapshot(collection(db, "fatores"), snap => {
-        const cont = document.getElementById('lista-fatores-selecao');
-        const tab = document.getElementById('tabelaFatores');
-        cont.innerHTML = ""; tab.innerHTML = '<thead><tr><th>Fator</th><th>Índice</th><th>Ações</th></tr></thead><tbody>';
+        const calculadora = document.getElementById('lista-fatores-selecao');
+        const gestao = document.getElementById('tabelaFatores');
+        calculadora.innerHTML = ""; 
+        gestao.innerHTML = '<thead><tr><th>Fator</th><th>Índice</th><th>Ações</th></tr></thead><tbody>';
         snap.forEach(d => {
             const f = d.data();
-            cont.innerHTML += `<div class="item-row fator-item-row"><input type="checkbox" class="fator-cb" data-indice="${f.indice}" onchange="atu()"><span class="fator-nome">${f.nome}</span><input type="number" class="fator-area" placeholder="m²" oninput="atu()"></div>`;
-            tab.innerHTML += `<tr><td>${f.nome}</td><td>${f.indice}</td><td><button class="btn-delete" onclick="remover('fatores','${d.id}')">Excluir</button></td></tr>`;
+            calculadora.innerHTML += `<div class="item-row fator-item-row"><input type="checkbox" class="fator-cb" data-indice="${f.indice}" onchange="atu()"><span class="fator-nome">${f.nome}</span><input type="number" class="fator-area" placeholder="m²" oninput="atu()"></div>`;
+            gestao.innerHTML += `<tr><td>${f.nome}</td><td>${f.indice}</td><td><button class="btn-delete" onclick="remover('fatores','${d.id}')">Excluir</button></td></tr>`;
         });
     });
 
     onSnapshot(collection(db, "plantacoes"), snap => {
-        const cont = document.getElementById('lista-plantacoes-selecao');
-        const tab = document.getElementById('tabelaPlantacoes');
-        cont.innerHTML = ""; tab.innerHTML = '<thead><tr><th>Cultura</th><th>R$/ha</th><th>Ações</th></tr></thead><tbody>';
+        const calculadora = document.getElementById('lista-plantacoes-selecao');
+        const gestao = document.getElementById('tabelaPlantacoes');
+        calculadora.innerHTML = ""; 
+        gestao.innerHTML = '<thead><tr><th>Cultura</th><th>R$/ha</th><th>Ações</th></tr></thead><tbody>';
         snap.forEach(d => {
             const p = d.data();
-            cont.innerHTML += `<div class="item-row plantacao-item-row"><input type="checkbox" class="pl-cb" data-valorha="${p.valorHectare}" onchange="atu()"><span class="pl-nome">${p.nome}</span><input type="number" class="pl-area" placeholder="m²" oninput="atu()"></div>`;
-            tab.innerHTML += `<tr><td>${p.nome}</td><td>R$ ${p.valorHectare}</td><td><button class="btn-delete" onclick="remover('plantacoes','${d.id}')">Excluir</button></td></tr>`;
+            calculadora.innerHTML += `<div class="item-row plantacao-item-row"><input type="checkbox" class="pl-cb" data-valorha="${p.valorHectare}" onchange="atu()"><span class="pl-nome">${p.nome}</span><input type="number" class="pl-area" placeholder="m²" oninput="atu()"></div>`;
+            gestao.innerHTML += `<tr><td>${p.nome}</td><td>R$ ${p.valorHectare}</td><td><button class="btn-delete" onclick="remover('plantacoes','${d.id}')">Excluir</button></td></tr>`;
         });
     });
 
     onSnapshot(query(collection(db, "avaliacoes"), orderBy("dataCadastro", "desc")), snap => {
-        const tab = document.getElementById('tabelaITBI');
-        tab.innerHTML = "";
+        const historico = document.getElementById('tabelaITBI');
+        historico.innerHTML = "";
         snap.forEach(d => {
             const item = d.data();
-            tab.innerHTML += `<tr><td>${item.dataCadastro.toDate().toLocaleDateString()}</td><td>${item.localidadeNome}</td><td>${item.areaM2} m²</td><td>${item.valorFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td>${item.valorContribuinte.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td><button class="btn-delete" onclick="remover('avaliacoes','${d.id}')">Excluir</button></td></tr>`;
+            historico.innerHTML += `<tr><td>${item.dataCadastro.toDate().toLocaleDateString()}</td><td>${item.localidadeNome}</td><td>${item.areaM2}</td><td>${item.valorFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td>${item.valorContribuinte.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td><button class="btn-delete" onclick="remover('avaliacoes','${d.id}')">Excluir</button></td></tr>`;
         });
     });
 }
 
-// --- SALVAMENTO ---
+// --- PERSISTÊNCIA ---
 document.getElementById('btnSalvarITBI').onclick = async () => {
-    if (valorFinalCalculado <= 0) return;
+    if (valorFinalCalculado <= 0) return alert("Cálculo zerado!");
     await addDoc(collection(db, "avaliacoes"), {
         localidadeNome: document.getElementById('itbi-localidade').selectedOptions[0].text,
         areaM2: document.getElementById('itbi-area').value,
@@ -170,22 +175,26 @@ document.getElementById('btnSalvarHectare').onclick = async () => {
     const nome = document.getElementById('loc-nome').value;
     const valor = parseFloat(document.getElementById('loc-valor').value);
     if(nome && valor) await addDoc(collection(db, "valores_hectare"), { localidade: nome, valorPorHectare: valor });
+    document.getElementById('loc-nome').value = ""; document.getElementById('loc-valor').value = "";
 };
 
 document.getElementById('btnSalvarFator').onclick = async () => {
     const nome = document.getElementById('fator-nome').value;
     const indice = parseFloat(document.getElementById('fator-indice').value);
     if(nome && indice) await addDoc(collection(db, "fatores"), { nome, indice });
+    document.getElementById('fator-nome').value = ""; document.getElementById('fator-indice').value = "";
 };
 
 document.getElementById('btnSalvarPlantacao').onclick = async () => {
     const nome = document.getElementById('pl-nome').value;
     const valor = parseFloat(document.getElementById('pl-valor').value);
     if(nome && valor) await addDoc(collection(db, "plantacoes"), { nome, valorHectare: valor });
+    document.getElementById('pl-nome').value = ""; document.getElementById('pl-valor').value = "";
 };
 
-window.atu = calcular;
-document.getElementById('itbi-area').oninput = calcular;
-document.getElementById('itbi-localidade').onchange = calcular;
-document.getElementById('itbi-valor-contribuinte').oninput = calcular;
-window.remover = async (c, id) => { if(confirm("Excluir registro?")) await deleteDoc(doc(db, c, id)); };
+// --- UTILITÁRIOS ---
+window.atu = calcularAvaliacao;
+document.getElementById('itbi-area').oninput = calcularAvaliacao;
+document.getElementById('itbi-localidade').onchange = calcularAvaliacao;
+document.getElementById('itbi-valor-contribuinte').oninput = calcularAvaliacao;
+window.remover = async (c, id) => { if(confirm("Deseja realmente excluir este registro?")) await deleteDoc(doc(db, c, id)); };

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Avalia ITBI - Gestão e Avaliação</title>
+    <title>Avalia ITBI - Gestão de Avaliações</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -11,24 +11,17 @@
 
     <div id="login-overlay" class="login-container">
         <div class="login-card">
-            <i class="fas fa-shield-alt" style="font-size: 3rem; color: #2c3e50; margin-bottom: 20px;"></i>
+            <i class="fas fa-user-lock" style="font-size: 3rem; color: #2c3e50; margin-bottom: 20px;"></i>
             <h2>Acesso ao Sistema</h2>
-            <p>Identifique-se para continuar</p>
+            <p>Entre com suas credenciais para continuar</p>
             
-            <button id="btnGoogle" class="btn-google">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" width="18">
-                Entrar com Google
-            </button>
-
-            <div class="separator"><span>ou use e-mail</span></div>
-
             <div class="form-group">
                 <input type="email" id="login-email" placeholder="E-mail">
             </div>
             <div class="form-group">
                 <input type="password" id="login-senha" placeholder="Senha">
             </div>
-            <button id="btnLogar" class="btn-primary">Entrar com E-mail</button>
+            <button id="btnLogar" class="btn-primary">Acessar Sistema</button>
             <p id="login-erro" class="error-msg"></p>
         </div>
     </div>
@@ -51,21 +44,22 @@
         </nav>
 
         <main class="content">
+            
             <section id="secao-itbi" class="tab-content active">
                 <h2><i class="fas fa-file-invoice-dollar"></i> Avaliação Técnica</h2>
                 <div class="card">
                     <div class="grid-form">
                         <div class="form-group">
-                            <label>Ano:</label>
+                            <label>Ano da Avaliação:</label>
                             <input type="number" id="itbi-ano" value="2024">
                         </div>
                         <div class="form-group">
                             <label>Localidade (Base/ha):</label>
-                            <select id="itbi-localidade"><option value="">Carregando...</option></select>
+                            <select id="itbi-localidade"><option value="">Carregando localidades...</option></select>
                         </div>
                         <div class="form-group">
                             <label>Área Total (m²):</label>
-                            <input type="number" id="itbi-area" step="0.01">
+                            <input type="number" id="itbi-area" step="0.01" placeholder="Ex: 5000">
                         </div>
                         <div class="form-group">
                             <label>Valor Avaliado (Sistema):</label>
@@ -78,16 +72,17 @@
                     </div>
 
                     <div id="painel-comparativo" class="comparativo-card" style="display: none;">
+                        <h4><i class="fas fa-balance-scale"></i> Análise Comparativa</h4>
                         <p id="comparativo-texto"></p>
                     </div>
 
                     <div class="split-grid mt-20">
                         <div class="list-container">
-                            <h4>Fatores de Ajuste (m² afetados):</h4>
+                            <h4>Fatores de Ajuste (m²):</h4>
                             <div id="lista-fatores-selecao" class="item-list-box"></div>
                         </div>
                         <div class="list-container">
-                            <h4>Plantações (m² de cultivo):</h4>
+                            <h4>Plantações (m²):</h4>
                             <div id="lista-plantacoes-selecao" class="item-list-box"></div>
                         </div>
                     </div>
@@ -103,10 +98,10 @@
                                 <tr>
                                     <th>Data</th>
                                     <th>Localidade</th>
-                                    <th>Área</th>
+                                    <th>Área (m²)</th>
                                     <th>Avaliado</th>
                                     <th>Declarado</th>
-                                    <th>Ações</th>
+                                    <th style="width: 80px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="tabelaITBI"></tbody>
@@ -128,17 +123,21 @@
                             <input type="number" id="loc-valor">
                         </div>
                     </div>
-                    <button id="btnSalvarHectare" class="btn-secondary">Cadastrar</button>
+                    <button id="btnSalvarHectare" class="btn-secondary">Cadastrar Localidade</button>
                 </div>
-                <div class="card mt-20"><table id="tabelaHectares"></table></div>
+                <div class="card mt-20">
+                    <div class="table-responsive">
+                        <table id="tabelaHectares"></table>
+                    </div>
+                </div>
             </section>
 
             <section id="secao-fatores" class="tab-content">
-                <h2>Configurar Multiplicadores</h2>
+                <h2>Configurar Multiplicadores (V/D)</h2>
                 <div class="card">
                     <div class="grid-form">
                         <div class="form-group" style="grid-column: span 2;">
-                            <label>Descrição:</label>
+                            <label>Descrição do Fator:</label>
                             <input type="text" id="fator-nome">
                         </div>
                         <div class="form-group">
@@ -146,13 +145,17 @@
                             <input type="number" id="fator-indice" step="0.01">
                         </div>
                     </div>
-                    <button id="btnSalvarFator" class="btn-secondary">Cadastrar</button>
+                    <button id="btnSalvarFator" class="btn-secondary">Cadastrar Fator</button>
                 </div>
-                <div class="card mt-20"><table id="tabelaFatores"></table></div>
+                <div class="card mt-20">
+                    <div class="table-responsive">
+                        <table id="tabelaFatores"></table>
+                    </div>
+                </div>
             </section>
 
             <section id="secao-plantacoes" class="tab-content">
-                <h2>Culturas e Reflorestamento</h2>
+                <h2>Cadastro de Culturas</h2>
                 <div class="card">
                     <div class="grid-form">
                         <div class="form-group" style="grid-column: span 2;">
@@ -160,14 +163,19 @@
                             <input type="text" id="pl-nome">
                         </div>
                         <div class="form-group">
-                            <label>Valorização/ha (R$):</label>
+                            <label>Valorização por Hectare (R$):</label>
                             <input type="number" id="pl-valor">
                         </div>
                     </div>
-                    <button id="btnSalvarPlantacao" class="btn-secondary">Cadastrar</button>
+                    <button id="btnSalvarPlantacao" class="btn-secondary">Cadastrar Cultura</button>
                 </div>
-                <div class="card mt-20"><table id="tabelaPlantacoes"></table></div>
+                <div class="card mt-20">
+                    <div class="table-responsive">
+                        <table id="tabelaPlantacoes"></table>
+                    </div>
+                </div>
             </section>
+
         </main>
     </div>
 
